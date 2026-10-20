@@ -42,7 +42,7 @@ RUN meson setup build-static \
         --auto-features=disabled \
         -Dbuild-static=true \
         -Dsystemd-multicall-binary=true \
-    && ninja -C build-static systemd systemd-shutdown
+    && ninja -C build-static systemd
 
 FROM ubuntu:${UBUNTU_VERSION} AS skeleton
 RUN mkdir -p /rootfs/etc /rootfs/run /rootfs/tmp /rootfs/usr/lib /rootfs/var \
@@ -56,14 +56,12 @@ RUN mkdir -p /rootfs/etc /rootfs/run /rootfs/tmp /rootfs/usr/lib /rootfs/var \
 FROM scratch AS minimal
 COPY --from=skeleton /rootfs/ /
 COPY --from=builder /src/build-static/systemd /usr/lib/systemd/systemd
-COPY --from=builder /src/build-static/systemd-shutdown /usr/lib/systemd/systemd-shutdown
 ENV container=docker
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/usr/lib/systemd/systemd"]
 
 FROM ubuntu:${UBUNTU_VERSION} AS noble
 COPY --from=builder /src/build-static/systemd /usr/lib/systemd/systemd
-COPY --from=builder /src/build-static/systemd-shutdown /usr/lib/systemd/systemd/systemd-shutdown
 ENV container=docker
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/usr/lib/systemd/systemd"]
