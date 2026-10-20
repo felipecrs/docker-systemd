@@ -8,8 +8,9 @@
 #
 # minimal: FROM scratch, just the static binary plus a tiny /etc, boots to
 #          multi-user.target using the unit files embedded since v261
-# noble:   ubuntu noble with the static 262 binary installed over the distro
-#          systemd as PID 1, so you get a shell and systemctl to poke around
+# noble:   ubuntu noble with the static 262 binary as PID 1, gives a shell
+#          and apt; the base image has no unit files so it also boots on the
+#          embedded ones (apt install systemd adds the distro units)
 
 ARG SYSTEMD_VERSION=v262.1
 ARG UBUNTU_VERSION=noble

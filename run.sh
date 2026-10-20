@@ -7,6 +7,9 @@
 #   ./run.sh --plain         no cgroup mounts, tests the degraded boot path
 #   ./run.sh --privileged    fallback for hosts where the unprivileged flags fail
 #
+# note: docker stop triggers the orderly systemd shutdown, but the final
+# kernel halt is denied inside docker, so the container exits 255 (harmless)
+#
 # requires a cgroup v2 host
 
 set -euo pipefail
