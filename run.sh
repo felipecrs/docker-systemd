@@ -9,6 +9,7 @@
 #
 # note: docker stop triggers the orderly systemd shutdown, but the final
 # kernel halt is denied inside docker, so the container exits 255 (harmless)
+# tracked upstream: https://github.com/systemd/systemd/issues/44312
 #
 # requires a cgroup v2 host
 

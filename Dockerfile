@@ -11,6 +11,10 @@
 # noble:   ubuntu noble with the static 262 binary as PID 1, gives a shell
 #          and apt; the base image has no unit files so it also boots on the
 #          embedded ones (apt install systemd adds the distro units)
+#
+# on docker stop the shutdown is orderly, but docker denies the final kernel
+# halt, so the container exits 255; tracked upstream:
+# https://github.com/systemd/systemd/issues/44312
 
 ARG SYSTEMD_VERSION=v262.1
 ARG UBUNTU_VERSION=noble
