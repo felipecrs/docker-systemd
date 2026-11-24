@@ -1,0 +1,24 @@
+[tools]
+hk = "2.13.0"
+jactionlint = "2.6.0"
+"pypi:pytest" = "9.2.0"
+ruff = "0.17.6"
+shellcheck = "0.11.0"
+# needed by pypi
+uv = "0.13.9"
+
+[tasks.build]
+description = "Build the images"
+run = "docker buildx bake"
+
+[tasks.test]
+description = "Test the images"
+run = "pytest"
+
+[tasks.lint]
+description = "Check everything"
+run = "hk check --all"
+
+[tasks.fix]
+description = "Fix everything that can be fixed"
+run = "hk fix --all"
