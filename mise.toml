@@ -1,5 +1,5 @@
 [tools]
-hk = "2.13.0"
+hk = "2.14.0"
 jactionlint = "2.6.0"
 "pypi:pytest" = "9.2.0"
 ruff = "0.17.6"
