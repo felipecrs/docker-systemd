@@ -97,6 +97,19 @@ jobs:
           ]')"
           echo "variants=$variants" >> "$GITHUB_OUTPUT"
 
+  # the only job that has to be required to merge, as it depends on the others
+  required-checks-passed:
+    needs: [lint, build, test]
+    # otherwise it is skipped when they fail, and skipped checks count as passed
+    if: always()
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Check that all jobs succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: jq --exit-status 'map_values(.result) | ., all(. == "success")' <<<"$NEEDS"
+
   publish-bin:
     needs: [lint, test]
     if: github.event_name == 'push'
