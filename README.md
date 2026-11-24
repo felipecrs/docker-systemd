@@ -42,8 +42,7 @@ If your image also installs the systemd package from the distro, copy the binary
 docker buildx bake --list=targets # list what can be built
 docker buildx bake                # build everything
 docker buildx bake check          # lint the Dockerfile
-./run.sh alpine                   # run a variant
-./test.sh                         # check that all variants boot and exit 0
+uvx pytest                        # test all variants
 ```
 
 The [ci workflow](.github/workflows/ci.yaml) publishes the images from `main`, once all tests pass.
