@@ -6,8 +6,8 @@
 #        docker build --target noble   -t systemd:noble   .
 # run:   ./run.sh [minimal|noble]
 #
-# minimal: FROM scratch, just the static binary plus a tiny /etc, boots to
-#          multi-user.target using the unit files embedded since v261
+# minimal: FROM scratch, just the static binary plus machine-id and os-release,
+#          boots to multi-user.target using the unit files embedded since v261
 # noble:   ubuntu noble with the static binary as PID 1, gives a shell
 #          and apt; the base image has no unit files so it also boots on the
 #          embedded ones (apt install systemd adds the distro units)
@@ -36,18 +36,16 @@ RUN meson setup build-static \
         -Dsystemd-multicall-binary=true \
     && ninja -C build-static systemd
 
-FROM ubuntu:noble AS skeleton
-RUN mkdir -p /rootfs/etc /rootfs/run /rootfs/tmp /rootfs/usr/lib /rootfs/var \
-    && printf 'ID=systemd-static\nNAME=systemd\nPRETTY_NAME="systemd (static single binary)"\n' > /rootfs/usr/lib/os-release \
-    && ln -s ../usr/lib/os-release /rootfs/etc/os-release \
-    && : > /rootfs/etc/machine-id \
-    && printf 'root:x:0:0:root:/root:/bin/sh\nnobody:x:65534:65534:nobody:/:/usr/sbin/nologin\n' > /rootfs/etc/passwd \
-    && printf 'root:x:0:\nnogroup:x:65534:\n' > /rootfs/etc/group \
-    && chmod 1777 /rootfs/tmp
-
 FROM scratch AS minimal
-COPY --from=skeleton /rootfs/ /
 COPY --from=builder /src/build-static/systemd /usr/lib/systemd/systemd
+# empty, so systemd generates the machine ID at boot
+COPY <<EOF /etc/machine-id
+EOF
+COPY <<EOF /usr/lib/os-release
+ID=systemd-static
+NAME=systemd
+PRETTY_NAME="systemd (static single binary)"
+EOF
 ENV container=docker
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/usr/lib/systemd/systemd"]
