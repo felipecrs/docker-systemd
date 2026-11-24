@@ -35,7 +35,7 @@ jobs:
         run: mise run lint
 
   build:
-    uses: docker/github-builder/.github/workflows/bake.yml@a31d2311da4d55e21b978c1c52bab82ba97d51ee # v1.19.0
+    uses: docker/github-builder/.github/workflows/bake.yml@bb1eb9fb69408ac52395fb21f49c6b52d564529a # v1.20.0
     permissions:
       contents: read
       id-token: write # to sign the cache
@@ -113,7 +113,7 @@ jobs:
   publish-bin:
     needs: [lint, test]
     if: github.event_name == 'push'
-    uses: docker/github-builder/.github/workflows/bake.yml@a31d2311da4d55e21b978c1c52bab82ba97d51ee # v1.19.0
+    uses: docker/github-builder/.github/workflows/bake.yml@bb1eb9fb69408ac52395fb21f49c6b52d564529a # v1.20.0
     permissions:
       contents: read
       id-token: write # to sign the attestations and cache
@@ -140,7 +140,7 @@ jobs:
       matrix:
         variant: ${{ fromJSON(needs.test.outputs.variants) }}
     name: publish-${{ matrix.variant.target }}
-    uses: docker/github-builder/.github/workflows/bake.yml@a31d2311da4d55e21b978c1c52bab82ba97d51ee # v1.19.0
+    uses: docker/github-builder/.github/workflows/bake.yml@bb1eb9fb69408ac52395fb21f49c6b52d564529a # v1.20.0
     permissions:
       contents: read
       id-token: write # to sign the attestations
