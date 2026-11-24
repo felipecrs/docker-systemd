@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# builds and runs the systemd 262 static PID 1 containers
+# builds and runs the systemd static PID 1 containers
 #
 # usage:
 #   ./run.sh                 build if needed and run the minimal target
 #   ./run.sh noble           run the ubuntu noble based target
 #   ./run.sh --plain         no cgroup mounts, tests the degraded boot path
 #   ./run.sh --privileged    fallback for hosts where the unprivileged flags fail
-#
-# note: docker stop triggers the orderly systemd shutdown, but the final
-# kernel halt is denied inside docker, so the container exits 255 (harmless)
-# tracked upstream: https://github.com/systemd/systemd/issues/44312
 #
 # requires a cgroup v2 host
 
@@ -34,7 +30,7 @@ if [ "${version:-}" != "2" ]; then
   exit 1
 fi
 
-image="systemd262:${target}"
+image="systemd:${target}"
 docker image inspect "$image" >/dev/null 2>&1 || docker build --target "$target" -t "$image" .
 
 exec docker run --rm -it \
