@@ -46,12 +46,10 @@ ID=systemd-static
 NAME=systemd
 PRETTY_NAME="systemd (static single binary)"
 EOF
-ENV container=docker
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/usr/lib/systemd/systemd"]
 
 FROM ubuntu:noble AS noble
 COPY --from=builder /src/build-static/systemd /usr/lib/systemd/systemd
-ENV container=docker
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/usr/lib/systemd/systemd"]
