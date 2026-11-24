@@ -70,7 +70,10 @@ COPY --link --from=docker \
     /usr/local/bin/dockerd \
     /usr/local/bin/runc \
     /usr/local/bin/
-COPY --link --from=docker /usr/local/libexec/docker/cli-plugins/ /usr/local/libexec/docker/cli-plugins/
+COPY --link --from=docker \
+    /usr/local/libexec/docker/cli-plugins/docker-buildx \
+    /usr/local/libexec/docker/cli-plugins/docker-compose \
+    /usr/local/libexec/docker/cli-plugins/
 COPY --link <<-'EOF' /etc/systemd/system/docker.service
 	[Unit]
 	Description=Docker Application Container Engine
