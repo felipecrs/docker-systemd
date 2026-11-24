@@ -1,0 +1,23 @@
+amends "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Builtins.pkl"
+
+steps {
+  ["docker"] {
+    glob = List("**/Dockerfile", "docker-bake.hcl")
+    check = "docker buildx bake check"
+  }
+  ["jactionlint"] = Builtins.jactionlint
+  ["mise"] = Builtins.mise
+  ["newlines"] = Builtins.newlines
+  ["ruff"] = Builtins.ruff
+  ["ruff-format"] = Builtins.ruff_format
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+}
+
+hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = Builtins.check_conventional_commit
+    }
+  }
+}
