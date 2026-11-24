@@ -46,4 +46,3 @@ To add another kind of image, such as dind, create a directory with a `Dockerfil
 - Descriptions are short, and say what changed and why.
 - Nothing is published from pull requests. Images are published from `main`, after all tests pass.
 - Jobs that have to pass before merging go in the `needs` of `required-checks-passed`.
-- Write `ci` in lowercase.
