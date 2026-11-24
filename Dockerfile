@@ -1,16 +1,19 @@
-# syntax=docker/dockerfile:1.29
+# syntax=ghcr.io/felipecrs/dockerfile:557987808
 # check=error=true
 
-# first commit that exits 0 on docker stop, not in any release yet (switch to
-# a v263 tag once out): https://github.com/systemd/systemd/issues/44312
+# TODO: switch back to docker/dockerfile once these are released:
+# https://github.com/moby/buildkit/pull/7386
+# https://github.com/moby/buildkit/pull/7463
+
+# TODO: switch to a v263 tag once this is released:
+# https://github.com/systemd/systemd/issues/44312
 ARG SYSTEMD_REVISION=2c70496761ed34fac36e7afa0adc0e63f9ff9409
-# time of the commit above, so that the build is reproducible (it could be set
-# to "source" instead, but that makes every build fetch the whole git history)
-ARG SOURCE_DATE_EPOCH=1795452022
+# use the commit time of the source, so that the build is reproducible
+ARG SOURCE_DATE_EPOCH=source
 
 FROM scratch AS source
 ARG SYSTEMD_REVISION
-ADD https://github.com/systemd/systemd.git?ref=${SYSTEMD_REVISION}&fetch-by-commit=true /
+ADD https://github.com/systemd/systemd.git?ref=${SYSTEMD_REVISION}&fetch-by-commit=true&mtime=commit /
 
 # upstream recipe: https://github.com/systemd/systemd/pull/42820
 FROM ubuntu:26.04 AS build
@@ -27,8 +30,6 @@ apt-get install -y --no-install-recommends \
     pkg-config \
     python3-jinja2
 EOF
-# systemd embeds it in the binary
-ARG SOURCE_DATE_EPOCH
 RUN --network=none --mount=type=bind,from=source,target=/src <<EOF
 set -eux
 meson setup /build /src \

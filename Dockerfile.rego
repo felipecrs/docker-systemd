@@ -10,8 +10,10 @@ allow if input.git.remote == "https://github.com/felipecrs/docker-systemd.git"
 
 allow if {
   input.image.host == "docker.io"
-  input.image.repo in {"alpine", "debian", "ubuntu", "docker/dockerfile", "docker/buildkit-syft-scanner"}
+  input.image.repo in {"alpine", "debian", "ubuntu", "docker/buildkit-syft-scanner"}
 }
+
+allow if input.image.fullRepo == "ghcr.io/felipecrs/dockerfile"
 
 # the bin image, as used by the variants in ci
 allow if {
