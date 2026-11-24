@@ -1,0 +1,123 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    uses: docker/github-builder/.github/workflows/bake.yml@v1
+    permissions:
+      contents: read
+      id-token: write # to sign the cache
+    with:
+      target: bin
+      vars: PLATFORMS=linux/amd64,linux/arm64
+      output: local
+      artifact-name: bin
+      artifact-upload: true
+      artifact-retention-days: 1
+      sign: 'false' # only used by the tests below
+      cache: true
+      cache-mode: max
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-26.04, ubuntu-26.04-arm]
+    runs-on: ${{ matrix.runner }}
+    outputs:
+      variants: ${{ steps.variants.outputs.variants }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download binary
+        uses: actions/download-artifact@v8
+        with:
+          name: bin
+          path: bin
+
+      - name: Build variants
+        run: |
+          bin="bin/linux_$(dpkg --print-architecture)"
+          chmod +x "$bin/systemd"
+          docker buildx bake image --set "*.contexts.bin=$bin"
+
+      - name: Test variants
+        run: ./test.sh
+
+      - name: List variants
+        id: variants
+        run: |
+          variants="$(docker buildx bake --print image | jq -c '[
+            .target | to_entries[] | {
+              target: .key,
+              tags: (.value.tags | map("type=raw,value=" + sub(".*:"; "")) | join("\n"))
+            }
+          ]')"
+          echo "variants=$variants" >> "$GITHUB_OUTPUT"
+
+  publish-bin:
+    needs: test
+    if: github.event_name == 'push'
+    uses: docker/github-builder/.github/workflows/bake.yml@v1
+    permissions:
+      contents: read
+      id-token: write # to sign the attestations and cache
+      packages: write
+    with:
+      target: bin
+      vars: PLATFORMS=linux/amd64,linux/arm64
+      output: image
+      push: true
+      cache: true
+      cache-mode: max
+      meta-images: ghcr.io/felipecrs/systemd
+      meta-tags: type=raw,value=bin
+    secrets:
+      registry-auths: |
+        - registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-variants:
+    needs: [test, publish-bin]
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(needs.test.outputs.variants) }}
+    name: publish-${{ matrix.variant.target }}
+    uses: docker/github-builder/.github/workflows/bake.yml@v1
+    permissions:
+      contents: read
+      id-token: write # to sign the attestations
+      packages: write
+    with:
+      target: ${{ matrix.variant.target }}
+      vars: PLATFORMS=linux/amd64,linux/arm64
+      # use the binary published above instead of building it again
+      set: '*.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@${{ needs.publish-bin.outputs.digest }}'
+      # nothing is executed in them, so emulation is not needed
+      distribute: false
+      output: image
+      push: true
+      sbom: true
+      meta-images: ghcr.io/felipecrs/systemd
+      meta-tags: ${{ matrix.variant.tags }}
+    secrets:
+      registry-auths: |
+        - registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
