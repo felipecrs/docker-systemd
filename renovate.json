@@ -1,6 +1,78 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:best-practices",
+    "customManagers:dockerfileVersions",
+    "helpers:pinGitHubActionDigestsToSemver",
+    ":automergeDigest",
+    ":automergeMinor",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(build)"
+  ],
+  "rebaseWhen": "behind-base-branch",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update annotated lists of versions in bake files",
+      "managerFilePatterns": ["**/docker-bake*.hcl"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+default\\s*=\\s*\\[\"(?<currentValue>[^\"]+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update hk in its configuration",
+      "managerFilePatterns": ["hk.pkl"],
+      "matchStrings": ["jdx/hk/releases/download/v(?<currentValue>[0-9.]+)/hk@[0-9.]+"],
+      "autoReplaceStringTemplate": "jdx/hk/releases/download/v{{{newValue}}}/hk@{{{newValue}}}",
+      "depNameTemplate": "jdx/hk",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["mise"],
+      "semanticCommitScope": "deps-dev"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "semanticCommitType": "ci"
+    },
+    {
+      "description": "hk and its configuration have to match",
+      "matchPackageNames": ["jdx/hk"],
+      "groupName": "hk",
+      "semanticCommitScope": "deps-dev"
+    },
+    {
+      "description": "Each variant stays in the release it is named after",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["alpine", "debian", "ubuntu"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "enabled": false
+    },
+    {
+      "description": "Update base images together",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["alpine", "debian", "ubuntu"],
+      "groupName": "base images"
+    },
+    {
+      "description": "Docker is updated through the annotated versions",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["docker"],
+      "enabled": false
+    },
+    {
+      "description": "Annotated versions are not images",
+      "matchManagers": ["custom.regex"],
+      "pinDigests": false
+    },
+    {
+      "description": "Own images are either tagged with commits, or replaced by bake",
+      "matchPackageNames": ["ghcr.io/felipecrs/**"],
+      "enabled": false
+    }
   ]
 }
