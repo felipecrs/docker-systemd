@@ -1,4 +1,4 @@
-# loaded automatically by buildx, restricts the sources of the build
+# restricts the sources of the build
 package docker
 
 default allow := false
@@ -10,10 +10,12 @@ allow if input.git.remote == "https://github.com/felipecrs/docker-systemd.git"
 
 allow if {
   input.image.host == "docker.io"
-  input.image.repo in {"alpine", "debian", "ubuntu", "docker/buildkit-syft-scanner"}
+  input.image.repo in {"alpine", "debian", "docker", "ubuntu", "docker/buildkit-syft-scanner", "docker/dockerfile"}
 }
 
 allow if input.image.fullRepo == "ghcr.io/felipecrs/dockerfile"
+
+allow if input.http.url == "https://download.docker.com/linux/debian/gpg"
 
 # the bin image, as used by the variants in ci
 allow if {

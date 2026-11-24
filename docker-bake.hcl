@@ -1,5 +1,5 @@
 variable "IMAGE" {
-  description = "Image repository to tag"
+  description = "Image repository to tag, dind goes in the one suffixed with -dind"
   type        = string
   default     = "ghcr.io/felipecrs/systemd"
 }
@@ -21,18 +21,38 @@ variable "SYSTEMD_REVISION" {
 }
 
 variable "VARIANTS" {
-  description = "Base images and their tags, which follow the Docker Official Images"
-  type        = list(object({ base = string, tags = list(string) }))
+  description = "Distros and their tags, the first being the stage in the Dockerfile"
+  type        = list(object({ distro = string, tags = list(string) }))
   default = [
-    { base = "debian:trixie", tags = ["trixie", "latest"] },
-    { base = "debian:bookworm", tags = ["bookworm"] },
-    { base = "ubuntu:resolute", tags = ["resolute"] },
-    { base = "ubuntu:noble", tags = ["noble"] },
-    { base = "ubuntu:jammy", tags = ["jammy"] },
-    { base = "alpine:3.24", tags = ["alpine3.24", "alpine"] },
-    { base = "alpine:3.23", tags = ["alpine3.23"] },
-    { base = "alpine:3.22", tags = ["alpine3.22"] },
+    { distro = "debian", tags = ["trixie", "latest"] },
+    { distro = "debian", tags = ["bookworm"] },
+    { distro = "ubuntu", tags = ["resolute"] },
+    { distro = "ubuntu", tags = ["noble"] },
+    { distro = "ubuntu", tags = ["jammy"] },
+    { distro = "alpine", tags = ["alpine3.24", "alpine"] },
+    { distro = "alpine", tags = ["alpine3.23"] },
+    { distro = "alpine", tags = ["alpine3.22"] },
   ]
+}
+
+variable "DOCKER_VERSIONS" {
+  description = "Versions of docker for dind, the first also gets the unversioned tags"
+  type        = list(string)
+  # renovate: datasource=docker depName=docker
+  default = ["29.10.0"]
+}
+
+# as in the docker official images, such as 29.10.0-trixie, 29, and trixie
+function "dind_tags" {
+  params = [version, tags]
+  result = flatten([
+    for prefix in concat(
+      [version, regex("^[0-9]+[.][0-9]+", version), split(".", version)[0]],
+      version == DOCKER_VERSIONS[0] ? [""] : [],
+    ) : [
+      for tag in tags : join("-", compact([prefix, tag == "latest" && prefix != "" ? "" : tag]))
+    ]
+  ])
 }
 
 function "metadata" {
@@ -44,7 +64,12 @@ function "metadata" {
 }
 
 group "default" {
-  targets = ["bin", "image"]
+  targets = ["bin", "images"]
+}
+
+# everything that is tested
+group "images" {
+  targets = ["image", "dind"]
 }
 
 target "_common" {
@@ -52,6 +77,7 @@ target "_common" {
     SYSTEMD_REVISION = SYSTEMD_REVISION
   }
   platforms = PLATFORMS
+  policy    = [{ filename = "policy.rego" }]
 }
 
 target "bin" {
@@ -68,18 +94,44 @@ target "image" {
     variant = VARIANTS
   }
   name        = replace(variant.tags[0], ".", "-")
-  description = "systemd on ${variant.base}"
+  description = "systemd on ${variant.tags[0]}"
   inherits    = ["_common"]
   target      = "image"
-  contexts = {
-    base = "docker-image://${variant.base}"
+  args = {
+    VARIANT = variant.tags[0]
   }
   tags        = [for tag in variant.tags : "${IMAGE}:${tag}"]
-  labels      = metadata("systemd on ${variant.base}")
-  annotations = [for k, v in metadata("systemd on ${variant.base}") : "index,manifest:${k}=${v}"]
+  labels      = metadata("systemd on ${variant.tags[0]}")
+  annotations = [for k, v in metadata("systemd on ${variant.tags[0]}") : "index,manifest:${k}=${v}"]
+}
+
+target "dind" {
+  matrix = {
+    variant = VARIANTS
+    version = DOCKER_VERSIONS
+  }
+  name        = replace("dind-${version}-${variant.tags[0]}", ".", "-")
+  description = "systemd and docker ${version} on ${variant.tags[0]}"
+  inherits    = ["_common"]
+  dockerfile  = "dind/Dockerfile"
+  target      = variant.distro
+  contexts = {
+    systemd = "target:${replace(variant.tags[0], ".", "-")}"
+  }
+  args = {
+    DOCKER_VERSION = version
+  }
+  tags        = [for tag in dind_tags(version, variant.tags) : "${IMAGE}-dind:${tag}"]
+  labels      = metadata("systemd and docker ${version} on ${variant.tags[0]}")
+  annotations = [for k, v in metadata("systemd and docker ${version} on ${variant.tags[0]}") : "index,manifest:${k}=${v}"]
 }
 
 target "check" {
-  description = "Lint the Dockerfile"
+  matrix = {
+    dockerfile = ["Dockerfile", "dind/Dockerfile"]
+  }
+  name        = "check-${replace(dockerfile, "/", "-")}"
+  description = "Lint ${dockerfile}"
+  dockerfile  = dockerfile
   call        = "check"
 }
