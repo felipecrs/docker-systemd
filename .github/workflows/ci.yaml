@@ -56,7 +56,7 @@ jobs:
           docker buildx bake image --set "*.contexts.bin=$bin"
 
       - name: Test variants
-        run: ./test.sh
+        run: pipx run pytest --verbose
 
       - name: List variants
         id: variants
