@@ -12,22 +12,15 @@
 #          and apt; the base image has no unit files so it also boots on the
 #          embedded ones (apt install systemd adds the distro units)
 
-ARG UBUNTU_VERSION=noble
-
-FROM ubuntu:${UBUNTU_VERSION} AS builder
-ENV DEBIAN_FRONTEND=noninteractive
+FROM ubuntu:noble AS builder
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential \
+        gcc \
         gperf \
-        libcap-dev \
-        libmount-dev \
+        libc6-dev \
         meson \
-        ninja-build \
         pkg-config \
-        python3 \
-        python3-jinja2 \
-    && rm -rf /var/lib/apt/lists/*
+        python3-jinja2
 
 # first commit that exits 0 on docker stop, not in any release yet (switch to
 # a v263 tag once out): https://github.com/systemd/systemd/issues/44312
@@ -43,7 +36,7 @@ RUN meson setup build-static \
         -Dsystemd-multicall-binary=true \
     && ninja -C build-static systemd
 
-FROM ubuntu:${UBUNTU_VERSION} AS skeleton
+FROM ubuntu:noble AS skeleton
 RUN mkdir -p /rootfs/etc /rootfs/run /rootfs/tmp /rootfs/usr/lib /rootfs/var \
     && printf 'ID=systemd-static\nNAME=systemd\nPRETTY_NAME="systemd (static single binary)"\n' > /rootfs/usr/lib/os-release \
     && ln -s ../usr/lib/os-release /rootfs/etc/os-release \
@@ -59,7 +52,7 @@ ENV container=docker
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/usr/lib/systemd/systemd"]
 
-FROM ubuntu:${UBUNTU_VERSION} AS noble
+FROM ubuntu:noble AS noble
 COPY --from=builder /src/build-static/systemd /usr/lib/systemd/systemd
 ENV container=docker
 STOPSIGNAL SIGRTMIN+3
