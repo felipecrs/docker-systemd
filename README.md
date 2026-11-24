@@ -66,18 +66,4 @@ No capabilities are needed, and it even boots with `--cap-drop ALL`. However, se
 
 ## Development
 
-Install [mise](https://mise.jdx.dev), then:
-
-```sh
-mise run build             # build everything
-mise run build noble       # build a single target
-mise run test              # test all variants
-mise run lint              # check everything
-mise run fix               # fix everything that can be fixed
-hk install --mise          # optional, do it on every commit
-mise tasks                 # list all tasks
-```
-
-To add another kind of image, such as dind, create a directory with a `Dockerfile` that starts from the `systemd` context, and a target for it in `docker-bake.hcl`.
-
-The [ci workflow](.github/workflows/ci.yaml) publishes the images from `main`, once all tests pass.
+See [AGENTS.md](AGENTS.md).
