@@ -1,10 +1,10 @@
 # systemd single static PID 1 binary in a container
 # upstream recipe: https://github.com/systemd/systemd/pull/42820
-# cgroup v2 hosts only
+# requires docker >= 28 on a cgroup v2 host
 #
 # build: docker build --target minimal -t systemd:minimal .
 #        docker build --target noble   -t systemd:noble   .
-# run:   ./run.sh [minimal|noble] [--plain|--privileged]
+# run:   ./run.sh [minimal|noble]
 #
 # minimal: FROM scratch, just the static binary plus a tiny /etc, boots to
 #          multi-user.target using the unit files embedded since v261
