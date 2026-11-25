@@ -45,16 +45,22 @@ jobs:
           }
           start() { n=$1; shift; docker run -d -t --name "$n" --tmpfs /run --security-opt writable-cgroups=true $base "$@" ghcr.io/felipecrs/systemd-dind:trixie >/dev/null; }
 
-          start new; try new docker exec -i new docker; docker rm -fv new
-          start sysrw -v /sys:/sys; try sysrw docker exec -i sysrw docker; docker logs sysrw 2>&1 | tail -5; docker rm -fv sysrw
-          start sysmnt -v /sys:/mnt; try sysmnt docker exec -i sysmnt docker; docker rm -fv sysmnt
+          start norec --mount type=bind,source=/sys,target=/mnt/sys,bind-recursive=disabled; try norec docker exec -i norec docker
+          docker exec norec sh -c 'grep " /mnt/sys" /proc/self/mountinfo; ls /mnt/sys/fs/cgroup | head -3'
+          echo "## kind"
+          docker exec norec sh -c 'apt-get update -qq; apt-get install -y -qq --no-install-recommends curl >/dev/null 2>&1; curl -fsSLo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64; chmod +x /usr/local/bin/kind; kind version; kind create cluster --wait 120s 2>&1 | tail -25; docker ps'
+          docker rm -fv norec
+
+          start norecro --mount type=bind,source=/sys,target=/mnt/sys,bind-recursive=disabled,readonly; try norecro docker exec -i norecro docker; docker rm -fv norecro
 
           start crun
-          docker exec crun sh -c 'apt-get update -qq; apt-get install -y -qq --no-install-recommends crun; crun --version; mkdir -p /etc/docker; echo "{\"default-runtime\":\"crun\",\"runtimes\":{\"crun\":{\"path\":\"/usr/bin/crun\"}}}" >/etc/docker/daemon.json; systemctl restart docker' 2>&1 | tail -12
+          docker exec crun sh -c 'apt-get update -qq; apt-get install -y -qq --no-install-recommends crun >/dev/null 2>&1; mkdir -p /etc/docker; echo "{\"default-runtime\":\"crun\",\"runtimes\":{\"crun\":{\"path\":\"/usr/bin/crun\"}}}" >/etc/docker/daemon.json; pkill -x dockerd; sleep 6'
           try crun docker exec -i crun docker; docker rm -fv crun
 
-          docker run -d --name rootless $base docker:29-dind-rootless >/dev/null
-          try rootless docker exec -i -e DOCKER_HOST=unix:///run/user/1000/docker.sock rootless docker
-          docker logs rootless 2>&1 | tail -5
+          echo "######## host exposure (opens without writing)"
+          probe='for f in /proc/sys/kernel/core_pattern /sys/kernel/uevent_helper /mnt/sys/kernel/uevent_helper; do [ -e $f ] && { (: >>$f) 2>/dev/null && echo "$f writable" || echo "$f denied"; }; done'
+          echo "# published options"; docker run --rm --entrypoint sh --cap-add SYS_ADMIN --cap-add NET_ADMIN --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined ghcr.io/felipecrs/systemd-dind:trixie -c "$probe; mount -o remount,rw /sys && $probe"
+          echo "# new options"; docker run --rm --entrypoint sh $base ghcr.io/felipecrs/systemd-dind:trixie -c "$probe"
+          echo "# new options with sys"; docker run --rm --entrypoint sh $base --mount type=bind,source=/sys,target=/mnt/sys,bind-recursive=disabled ghcr.io/felipecrs/systemd-dind:trixie -c "$probe"
       - if: always()
         run: sudo dmesg | grep -iE 'apparmor.*DENIED' | tail -8
