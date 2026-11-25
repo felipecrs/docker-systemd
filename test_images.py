@@ -12,6 +12,7 @@ OPTIONS = ["--tmpfs=/run", "--security-opt=writable-cgroups=true"]
 DIND_OPTIONS = [
     *OPTIONS,
     "--device=/dev/net/tun",
+    "--mount=type=bind,source=/sys,target=/mnt/sys,bind-recursive=disabled",
     "--security-opt=apparmor=rootlesskit",
     "--security-opt=seccomp=unconfined",
     "--security-opt=systempaths=unconfined",

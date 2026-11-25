@@ -14,6 +14,7 @@ docker run --rm -it \
   --tmpfs /run \
   --security-opt writable-cgroups=true \
   --device /dev/net/tun \
+  --mount type=bind,source=/sys,target=/mnt/sys,bind-recursive=disabled \
   --security-opt apparmor=rootlesskit \
   --security-opt seccomp=unconfined \
   --security-opt systempaths=unconfined \
@@ -21,7 +22,7 @@ docker run --rm -it \
   ghcr.io/felipecrs/systemd-dind
 ```
 
-It needs neither `--privileged` nor any capability besides the default ones, as Docker runs in its own [user namespace](https://man7.org/linux/man-pages/man7/user_namespaces.7.html). However, the profiles that protect the host are still disabled, so do not run anything you do not trust in it.
+It needs neither `--privileged` nor any capability besides the default ones, as Docker runs in its own [user namespace](https://man7.org/linux/man-pages/man7/user_namespaces.7.html). However, root in it can still change settings of the host, such as the ones in `/proc/sys`, so do not run anything you do not trust in it.
 
 Because of that, Docker also has its own network:
 
@@ -35,6 +36,9 @@ Because of that, Docker also has its own network:
 Everything [needed to run systemd](../README.md#to-run-it), and also:
 
 - `--device /dev/net/tun`: [pasta](https://passt.top) connects the network of Docker to the one of the container through it.
+- `--mount type=bind,source=/sys,target=/mnt/sys,bind-recursive=disabled`: only needed to run containers with `--privileged` in it, such as the ones of the `docker-container` driver of Buildx.
+  - They mount a writable `/sys`, but Docker mounts the one here as read-only, and the kernel [does not allow a user namespace to get around that](https://github.com/torvalds/linux/blob/v6.18/fs/namespace.c#L6120) unless a writable one is also visible.
+  - It cannot replace `/sys`, as systemd does not start. `bind-recursive=disabled` leaves out what is mounted under it, such as the cgroups of the host.
 - `--security-opt seccomp=unconfined`: the [default profile](https://docs.docker.com/engine/security/seccomp/) blocks creating user namespaces without `SYS_ADMIN`. It also blocks `keyctl` and `pivot_root`, which runc uses to start each container.
   - Allowing `keyctl` was [proposed and closed](https://github.com/moby/profiles/pull/2), as the kernel keyring is not namespaced. runc only [tolerates its absence, not its denial](https://github.com/opencontainers/runc/blob/v1.4.0/libcontainer/standard_init_linux.go).
   - [opencontainers/runtime-spec#1112](https://github.com/opencontainers/runtime-spec/pull/1112) is open, and would let Docker ask runc not to use it. `pivot_root` would still be blocked.
@@ -56,7 +60,7 @@ Docker has [an open request](https://github.com/docker-library/docker/issues/306
   - On Debian and Ubuntu, containerd is a separate service by default, and stores images in `/var/lib/containerd`. It is disabled, so that Docker runs containerd by itself, with everything in a single volume and in the same namespaces.
 - `docker.service`: [`PrivateUsers=full`](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#PrivateUsers=) creates the user namespace, in which Docker has all capabilities, but only over the namespaces created from it. `identity` would be enough, but it denies `setgroups`, which many images use to drop privileges.
   - systemd can also create the other namespaces, with `PrivateNetwork=` and `DelegateNamespaces=`, but fails to set up the mount one without `SYS_ADMIN`, so `unshare` does it.
-  - Rootless Docker is not used because [it needs a systemd user session](https://docs.docker.com/engine/security/rootless/tips/#limiting-resources) to limit the resources of containers.
+  - Rootless Docker is not used because it needs [a systemd user session to limit the resources of containers](https://docs.docker.com/engine/security/rootless/tips/#limiting-resources). That needs D-Bus and the systemd package of the distro, which would replace the binary of this image, and does not exist on Alpine.
 - `pasta`: connects the network of Docker, and forwards its ports. Built [from source](../passt/Dockerfile), as the packages of older distros are either too old or missing.
 - `ca-certificates`: to pull images.
 - `git`: to build from Git repositories, and to `ADD` them.

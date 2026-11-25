@@ -11,7 +11,8 @@ FROM scratch AS passt
 FROM systemd AS dind
 # docker uses overlayfs, which cannot write on top of another one
 VOLUME /var/lib/docker
-# behaves as pasta because of its name
+# behaves as pasta because of its name, and does not work from /usr/bin on ubuntu
+# hosts, as they have an apparmor profile for it that also applies to containers
 COPY --link --from=passt /passt /usr/local/bin/pasta
 # the same service for all distros
 RUN <<-'EOF'
@@ -43,6 +44,9 @@ COPY --link <<-'EOF' /etc/systemd/system/docker.service
 		exec nsenter --net=/run/docker-netns dockerd'
 	Restart=always
 	RestartSec=2
+	# as in the service that docker ships
+	TimeoutStartSec=0
+	TasksMax=infinity
 	Delegate=yes
 	# also stops pasta and the containers, as their network is gone
 	KillMode=mixed
