@@ -14,7 +14,7 @@ jobs:
       - run: |
           docker buildx create --use --name diag --driver-opt image=moby/buildkit:latest
           digest="$(docker buildx imagetools inspect ghcr.io/felipecrs/systemd:bin --format '{{.Manifest.Digest}}')"
-          docker buildx bake --load dind-29-10-1-trixie --set "trixie.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@$digest"
+          docker buildx bake --load dind-29-10-1-trixie --set "*.annotations=manifest:a=b" --set "trixie.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@$digest"
           docker images
       - run: |
           set +e
