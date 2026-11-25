@@ -12,7 +12,7 @@ FROM systemd AS dind
 # docker uses overlayfs, which cannot write on top of another one
 VOLUME /var/lib/docker
 # behaves as pasta because of its name
-COPY --link --from=passt /passt /usr/bin/pasta
+COPY --link --from=passt /passt /usr/local/bin/pasta
 # the same service for all distros
 RUN <<-'EOF'
 	set -eux
