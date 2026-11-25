@@ -1,5 +1,6 @@
 import json
 import lzma
+import socket
 import subprocess
 import tarfile
 import time
@@ -10,8 +11,7 @@ OPTIONS = ["--tmpfs=/run", "--security-opt=writable-cgroups=true"]
 
 DIND_OPTIONS = [
     *OPTIONS,
-    "--cap-add=NET_ADMIN",
-    "--cap-add=SYS_ADMIN",
+    "--device=/dev/net/tun",
     "--security-opt=apparmor=unconfined",
     "--security-opt=seccomp=unconfined",
     "--security-opt=systempaths=unconfined",
@@ -55,6 +55,29 @@ def wait_for_boot(container):
     while "Startup finished" not in docker("logs", container):
         assert time.monotonic() < deadline, "did not finish booting"
         time.sleep(0.1)
+
+
+def retry(function):
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            return function()
+        except (OSError, subprocess.CalledProcessError):
+            if time.monotonic() > deadline:
+                raise
+        time.sleep(0.5)
+
+
+def receive(address, port):
+    def connect():
+        with socket.create_connection((address, port), timeout=5) as connection:
+            data = connection.recv(1024)
+            if not data:
+                raise OSError("connection closed")
+            return data
+
+    # pasta takes a moment to detect ports
+    return retry(connect)
 
 
 def exit_code(container):
@@ -126,7 +149,26 @@ def test_dind(run, image):
     nested("run", "--detach", "--name=test", "test", "sleep", "infinity")
     assert "sleep infinity" in nested("top", "test")
 
+    # publishes ports
+    command = ["nc", "-lk", "-p", "80", "-e", "echo", "hello"]
+    nested("run", "--detach", "--publish=8080:80", "test", *command)
+    address = docker(
+        "inspect", "--format={{.NetworkSettings.Networks.bridge.IPAddress}}", container
+    )
+    assert receive(address, 8080) == b"hello\n"
+
+    # does not deny setgroups, which many images use to drop privileges
+    assert nested("run", "--rm", "test", "su", "-s", "/usr/bin/id", "nobody")
+
+    # has enough permissions for another one, when privileged
+    mount = ["mount", "-t", "tmpfs", "tmpfs", "/mnt"]
+    nested("run", "--rm", "--privileged", "test", *mount)
+
     nested("compose", "version")
+
+    # recovers from crashes
+    docker("exec", container, "pkill", "-KILL", "-x", "dockerd")
+    retry(lambda: nested("run", "--rm", "test", "true"))
 
     docker("stop", container)
     assert exit_code(container) == 0

@@ -28,6 +28,16 @@
       "depNameTemplate": "jdx/hk",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Update passt to the commit of its latest tag",
+      "managerFilePatterns": ["passt/Dockerfile"],
+      "matchStrings": ["# (?<currentValue>[0-9_]+\\.[0-9a-f]+)\\nARG PASST_REVISION=(?<currentDigest>[0-9a-f]{40})"],
+      "depNameTemplate": "passt",
+      "packageNameTemplate": "https://passt.top/passt",
+      "datasourceTemplate": "git-tags",
+      "versioningTemplate": "regex:^(?<major>\\d{4})_(?<minor>\\d{2})_(?<patch>\\d{2})\\.[0-9a-f]+$"
     }
   ],
   "packageRules": [

@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
+      - master
 
 permissions:
   contents: read
@@ -35,15 +35,19 @@ jobs:
         run: mise run lint
 
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [bin, passt]
     uses: docker/github-builder/.github/workflows/bake.yml@bb1eb9fb69408ac52395fb21f49c6b52d564529a # v1.20.0
     permissions:
       contents: read
       id-token: write # to sign the cache
     with:
-      target: bin
+      target: ${{ matrix.target }}
       vars: PLATFORMS=linux/amd64,linux/arm64
       output: local
-      artifact-name: bin
+      artifact-name: ${{ matrix.target }}
       artifact-upload: true
       artifact-retention-days: 1
       sign: 'false' # only used by the tests below
@@ -75,11 +79,19 @@ jobs:
           name: bin
           path: bin
 
+      - name: Download passt
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: passt
+          path: passt-bin
+
       - name: Build variants
         run: |
-          bin="bin/linux_$(dpkg --print-architecture)"
-          chmod +x "$bin/systemd"
-          mise run build images --set "*.contexts.bin=$bin"
+          platform="linux_$(dpkg --print-architecture)"
+          chmod +x "bin/$platform/systemd" "passt-bin/$platform/passt"
+          mise run build images \
+            --set "*.contexts.bin=bin/$platform" \
+            --set "*.contexts.passt=passt-bin/$platform"
 
       - name: Test variants
         run: mise run test --verbose
@@ -88,7 +100,8 @@ jobs:
         id: variants
         run: |
           variants="$(docker buildx bake --print images | jq -c '[
-            .target | to_entries[] | {
+            # passt is only there because dind depends on it
+            .target | del(.passt) | to_entries[] | {
               target: .key,
               image: (.value.tags[0] | sub(":.*"; "")),
               distribute: (.value.dockerfile != "Dockerfile"),
@@ -133,8 +146,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+  publish-passt:
+    needs: [lint, test]
+    if: github.event_name == 'push'
+    uses: docker/github-builder/.github/workflows/bake.yml@bb1eb9fb69408ac52395fb21f49c6b52d564529a # v1.20.0
+    permissions:
+      contents: read
+      id-token: write # to sign the attestations and cache
+      packages: write
+    with:
+      target: passt
+      vars: PLATFORMS=linux/amd64,linux/arm64
+      output: image
+      push: true
+      cache: true
+      cache-mode: max
+      meta-images: ghcr.io/felipecrs/passt
+      meta-tags: type=raw,value=bin
+    secrets:
+      registry-auths: |
+        - registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
   publish-variants:
-    needs: [test, publish-bin]
+    needs: [test, publish-bin, publish-passt]
     strategy:
       fail-fast: false
       matrix:
@@ -148,8 +184,10 @@ jobs:
     with:
       target: ${{ matrix.variant.target }}
       vars: PLATFORMS=linux/amd64,linux/arm64
-      # use the binary published above instead of building it again
-      set: '*.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@${{ needs.publish-bin.outputs.digest }}'
+      # use the binaries published above instead of building them again
+      set: |
+        *.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@${{ needs.publish-bin.outputs.digest }}
+        *.contexts.passt=docker-image://ghcr.io/felipecrs/passt@${{ needs.publish-passt.outputs.digest }}
       # nothing is executed in the base one, so emulation is not needed
       distribute: ${{ matrix.variant.distribute }}
       output: image

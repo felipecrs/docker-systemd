@@ -64,7 +64,7 @@ function "metadata" {
 }
 
 group "default" {
-  targets = ["bin", "images"]
+  targets = ["bin", "passt", "images"]
 }
 
 # everything that is tested
@@ -87,6 +87,16 @@ target "bin" {
   tags        = ["${IMAGE}:bin"]
   labels      = metadata("systemd")
   annotations = [for k, v in metadata("systemd") : "index,manifest:${k}=${v}"]
+}
+
+target "passt" {
+  description = "Only the static binary of passt, for dind"
+  inherits    = ["_common"]
+  dockerfile  = "passt/Dockerfile"
+  target      = "bin"
+  tags        = ["ghcr.io/felipecrs/passt:bin"]
+  labels      = metadata("passt")
+  annotations = [for k, v in metadata("passt") : "index,manifest:${k}=${v}"]
 }
 
 target "image" {
@@ -117,6 +127,7 @@ target "dind" {
   target      = variant.distro
   contexts = {
     systemd = "target:${replace(variant.tags[0], ".", "-")}"
+    passt   = "target:passt"
   }
   args = {
     DOCKER_VERSION = version
@@ -128,7 +139,7 @@ target "dind" {
 
 target "check" {
   matrix = {
-    dockerfile = ["Dockerfile", "dind/Dockerfile"]
+    dockerfile = ["Dockerfile", "dind/Dockerfile", "passt/Dockerfile"]
   }
   name        = "check-${replace(dockerfile, "/", "-")}"
   description = "Lint ${dockerfile}"
