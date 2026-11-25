@@ -2,7 +2,7 @@
 # check=error=true
 
 # renovate: datasource=docker depName=docker
-ARG DOCKER_VERSION=29.10.0
+ARG DOCKER_VERSION=29.10.1
 
 # replaced by bake with the one for each distro
 FROM ghcr.io/felipecrs/systemd AS systemd

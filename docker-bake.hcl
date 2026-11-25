@@ -39,7 +39,7 @@ variable "DOCKER_VERSIONS" {
   description = "Versions of docker for dind, the first also gets the unversioned tags"
   type        = list(string)
   # renovate: datasource=docker depName=docker
-  default = ["29.10.0"]
+  default = ["29.10.1"]
 }
 
 # as in the docker official images, such as 29.10.0-trixie, 29, and trixie
