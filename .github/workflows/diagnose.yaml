@@ -1,0 +1,28 @@
+name: diagnose
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - env:
+          SCRIPT: |
+            grep -E " /sys" /proc/self/mountinfo
+            unshare --user --map-root-user --mount --net sh -c "mkdir -p /mnt/s; mount -t sysfs -o ro,nosuid,nodev,noexec s /mnt/s && echo ro-ok; umount /mnt/s 2>/dev/null; mount -t sysfs -o nosuid,nodev,noexec s /mnt/s && echo rw-ok"
+        run: |
+          uname -r
+          try() {
+            echo "#### $*"
+            docker run --rm --security-opt seccomp=unconfined --security-opt systempaths=unconfined "$@" ubuntu:26.04 sh -c "$SCRIPT" 2>&1 || true
+          }
+          try --security-opt apparmor=rootlesskit
+          try --security-opt apparmor=rootlesskit --security-opt writable-cgroups=true
+          try --security-opt apparmor=rootlesskit --cap-add SYS_ADMIN
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          try --security-opt apparmor=unconfined
+          sudo dmesg | grep -iE 'apparmor.*DENIED' | tail -5
