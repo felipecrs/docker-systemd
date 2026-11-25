@@ -12,7 +12,7 @@ OPTIONS = ["--tmpfs=/run", "--security-opt=writable-cgroups=true"]
 DIND_OPTIONS = [
     *OPTIONS,
     "--device=/dev/net/tun",
-    "--security-opt=apparmor=unconfined",
+    "--security-opt=apparmor=rootlesskit",
     "--security-opt=seccomp=unconfined",
     "--security-opt=systempaths=unconfined",
     "--stop-timeout=30",

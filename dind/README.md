@@ -14,7 +14,7 @@ docker run --rm -it \
   --tmpfs /run \
   --security-opt writable-cgroups=true \
   --device /dev/net/tun \
-  --security-opt apparmor=unconfined \
+  --security-opt apparmor=rootlesskit \
   --security-opt seccomp=unconfined \
   --security-opt systempaths=unconfined \
   --stop-timeout 30 \
@@ -38,7 +38,9 @@ Everything [needed to run systemd](../README.md#to-run-it), and also:
 - `--security-opt seccomp=unconfined`: the [default profile](https://docs.docker.com/engine/security/seccomp/) blocks creating user namespaces without `SYS_ADMIN`. It also blocks `keyctl` and `pivot_root`, which runc uses to start each container.
   - Allowing `keyctl` was [proposed and closed](https://github.com/moby/profiles/pull/2), as the kernel keyring is not namespaced. runc only [tolerates its absence, not its denial](https://github.com/opencontainers/runc/blob/v1.4.0/libcontainer/standard_init_linux.go).
   - [opencontainers/runtime-spec#1112](https://github.com/opencontainers/runtime-spec/pull/1112) is open, and would let Docker ask runc not to use it. `pivot_root` would still be blocked.
-- `--security-opt apparmor=unconfined`: the [default profile](https://github.com/moby/profiles/blob/main/apparmor/template.go) blocks `mount`. It has no effect if the host does not use AppArmor.
+- `--security-opt apparmor=rootlesskit`: the [default profile](https://github.com/moby/profiles/blob/main/apparmor/template.go) blocks `mount`. It has no effect if the host does not use AppArmor.
+  - `unconfined` is not enough on Ubuntu, which [restricts user namespaces](https://documentation.ubuntu.com/security/security-features/privilege-restriction/apparmor/) unless a profile allows them. This one, which comes with Ubuntu, does nothing besides that.
+  - If the host uses AppArmor but does not have this profile, use `apparmor=unconfined` instead.
 - `--security-opt systempaths=unconfined`: Docker disables IPv6 in the containers that do not use it through `/proc/sys`, which is otherwise read-only.
   - Docker 26.1 had [a variable to skip it](https://github.com/moby/moby/pull/47769), but it was [removed in Docker 27](https://github.com/moby/moby/pull/47963).
   - Enabling IPv6 in all networks instead, as suggested there, does not work either, as the daemon does not start.
