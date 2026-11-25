@@ -12,8 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: |
+          docker buildx create --use --name diag --driver-opt image=moby/buildkit:latest
           digest="$(docker buildx imagetools inspect ghcr.io/felipecrs/systemd:bin --format '{{.Manifest.Digest}}')"
-          docker buildx bake dind-29-10-1-trixie --set "trixie.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@$digest"
+          docker buildx bake --load dind-29-10-1-trixie --set "trixie.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@$digest"
           docker images
       - run: |
           set +e
