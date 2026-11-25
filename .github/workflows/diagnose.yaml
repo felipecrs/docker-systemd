@@ -1,0 +1,56 @@
+name: diagnose
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: |
+          digest="$(docker buildx imagetools inspect ghcr.io/felipecrs/systemd:bin --format '{{.Manifest.Digest}}')"
+          docker buildx bake dind-29-10-1-trixie --set "*.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@$digest"
+          docker images
+      - run: |
+          set +e
+          uname -r
+          base="--security-opt seccomp=unconfined --security-opt apparmor=rootlesskit --security-opt systempaths=unconfined --device /dev/net/tun"
+          try() { # name, then command prefix for the nested docker
+            n=$1; shift
+            for _ in $(seq 60); do "$@" info >/dev/null 2>&1 && break; sleep 1; done
+            echo "######## $n"
+            "$@" info 2>&1 | grep -E 'Storage|Cgroup|Runtime|rootless|ERROR|annot'
+            "$@" run --rm alpine echo plain-ok 2>&1 | tail -3
+            "$@" run --rm --memory=64m alpine cat /sys/fs/cgroup/memory.max 2>&1 | tail -3
+            "$@" run --rm --privileged alpine sh -c 'mount -t tmpfs tmpfs /mnt && echo mount-ok; grep " /sys" /proc/self/mountinfo' 2>&1 | tail -6
+            "$@" run --rm --privileged alpine sh -c 'echo w > /proc/sys/kernel/hostname && echo procsys-ok; mount -o remount,rw /sys && echo remount-ok' 2>&1 | tail -3
+            echo "## dind-in-dind"
+            "$@" run -d --privileged --name inner docker:29-dind --tls=false >/dev/null 2>&1
+            for _ in $(seq 25); do "$@" exec inner docker info >/dev/null 2>&1 && break; sleep 1; done
+            "$@" exec inner docker run --rm alpine echo nested-ok 2>&1 | tail -3
+            "$@" logs inner 2>&1 | grep -iE 'failed|error' | tail -3
+            "$@" rm -fv inner >/dev/null 2>&1
+            echo "## buildx container driver"
+            "$@" buildx create --name b --driver docker-container >/dev/null 2>&1
+            printf 'FROM alpine\nRUN echo built-ok\n' | "$@" buildx build --builder b --progress plain - 2>&1 | grep -E 'built-ok|ERROR|rror' | tail -4
+            "$@" buildx rm b >/dev/null 2>&1
+          }
+          start() { n=$1; shift; docker run -d -t --name "$n" --tmpfs /run --security-opt writable-cgroups=true $base "$@" ghcr.io/felipecrs/systemd-dind:trixie >/dev/null; }
+
+          start new; try new docker exec -i new docker; docker rm -fv new
+          start sysrw -v /sys:/sys; try sysrw docker exec -i sysrw docker; docker logs sysrw 2>&1 | tail -5; docker rm -fv sysrw
+          start sysmnt -v /sys:/mnt; try sysmnt docker exec -i sysmnt docker; docker rm -fv sysmnt
+
+          start crun
+          docker exec crun sh -c 'apt-get update -qq; apt-get install -y -qq --no-install-recommends crun; crun --version; mkdir -p /etc/docker; echo "{\"default-runtime\":\"crun\",\"runtimes\":{\"crun\":{\"path\":\"/usr/bin/crun\"}}}" >/etc/docker/daemon.json; systemctl restart docker' 2>&1 | tail -12
+          try crun docker exec -i crun docker; docker rm -fv crun
+
+          docker run -d --name rootless $base docker:29-dind-rootless >/dev/null
+          try rootless docker exec -i -e DOCKER_HOST=unix:///run/user/1000/docker.sock rootless docker
+          docker logs rootless 2>&1 | tail -5
+      - if: always()
+        run: sudo dmesg | grep -iE 'apparmor.*DENIED' | tail -8
