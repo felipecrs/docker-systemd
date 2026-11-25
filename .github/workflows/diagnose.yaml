@@ -4,6 +4,7 @@ on: pull_request
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   diagnose:
@@ -11,11 +12,13 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: |
-          docker buildx create --use --name diag --driver-opt image=moby/buildkit:latest
-          digest="$(docker buildx imagetools inspect ghcr.io/felipecrs/systemd:bin --format '{{.Manifest.Digest}}')"
-          docker buildx bake --load dind-29-10-1-trixie --set "*.annotations=manifest:a=b" --set "trixie.contexts.bin=docker-image://ghcr.io/felipecrs/systemd@$digest"
-          docker images
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 45628656459 -n bin -D bin
+          gh run download 45628656459 -n passt -D passt-bin
+          chmod +x bin/*/systemd passt-bin/*/passt
+          docker buildx bake dind-29-10-1-trixie --set "*.contexts.bin=bin/linux_amd64" --set "*.contexts.passt=passt-bin/linux_amd64"
       - run: |
           set +e
           uname -r
