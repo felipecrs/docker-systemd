@@ -17,14 +17,14 @@ allow if input.image.fullRepo == "ghcr.io/felipecrs/dockerfile"
 
 allow if input.http.url == "https://download.docker.com/linux/debian/gpg"
 
-# the bin image, as used by the variants in ci
+# the bin images, as used by the variants in ci
 allow if {
-  input.image.fullRepo == "ghcr.io/felipecrs/systemd"
+  input.image.fullRepo in {"ghcr.io/felipecrs/passt", "ghcr.io/felipecrs/systemd"}
   input.image.isCanonical
 }
 
 allow if {
-  input.git.remote == "https://github.com/systemd/systemd.git"
+  input.git.remote in {"https://github.com/systemd/systemd.git", "https://passt.top/passt/.git"}
   input.git.isCommitRef
 }
 

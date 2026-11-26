@@ -22,6 +22,7 @@ Building and testing everything takes minutes. For a small change, only build an
 
 - `Dockerfile`: the systemd binary (`bin`), and the image for each distro (`image`)
 - `dind/`: an image built on top of these, with its own `Dockerfile` and `README.md`
+- `passt/`: the passt binary, used by `dind/`
 - `docker-bake.hcl`: all targets and tags
 - `policy.rego`: the sources that builds are allowed to use
 - `test_images.py`: tests, which run the images that were built before
@@ -44,5 +45,5 @@ To add another kind of image, such as dind, create a directory with a `Dockerfil
 
 - Titles follow [Conventional Commits](https://www.conventionalcommits.org), as they become the commit message.
 - Descriptions are short, and say what changed and why.
-- Nothing is published from pull requests. Images are published from `main`, after all tests pass.
+- Nothing is published from pull requests. Images are published from `master`, after all tests pass.
 - Jobs that have to pass before merging go in the `needs` of `required-checks-passed`.

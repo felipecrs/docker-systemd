@@ -4,12 +4,53 @@
 # renovate: datasource=docker depName=docker
 ARG DOCKER_VERSION=29.10.1
 
-# replaced by bake with the one for each distro
+# both replaced by bake, the first with the one for each distro
 FROM ghcr.io/felipecrs/systemd AS systemd
+FROM scratch AS passt
 
 FROM systemd AS dind
 # docker uses overlayfs, which cannot write on top of another one
-VOLUME /var/lib/containerd /var/lib/docker
+VOLUME /var/lib/docker
+# behaves as pasta because of its name, and does not work from /usr/bin on ubuntu
+# hosts, as they have an apparmor profile for it that also applies to containers
+COPY --link --from=passt /passt /usr/local/bin/pasta
+# the same service for all distros
+RUN <<-'EOF'
+	set -eux
+	mkdir -p /etc/systemd/system/multi-user.target.wants
+	cd /etc/systemd/system
+	ln -s ../docker.service multi-user.target.wants/
+	# docker runs containerd by itself, and creates the socket too
+	ln -s /dev/null containerd.service
+	ln -s /dev/null docker.socket
+EOF
+COPY --link <<-'EOF' /etc/systemd/system/docker.service
+	[Unit]
+	Description=Docker Application Container Engine
+
+	[Service]
+	Type=notify
+	# systemd leaves /bin and /sbin out, but alpine still has commands there
+	Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+	# gives it all capabilities, but only over the namespaces created below
+	PrivateUsers=full
+	# pasta has to start first, so that docker does not pick the same subnet
+	ExecStart=/usr/bin/unshare --mount /bin/sh -euxc '\
+		touch /run/docker-netns; \
+		unshare --net=/run/docker-netns true; \
+		pasta --config-net --netns-only --runas 0 --no-map-gw \
+			--tcp-ports auto --udp-ports auto --tcp-ns none --udp-ns none \
+			--netns /run/docker-netns; \
+		exec nsenter --net=/run/docker-netns dockerd'
+	Restart=always
+	RestartSec=2
+	# as in the service that docker ships
+	TimeoutStartSec=0
+	TasksMax=infinity
+	Delegate=yes
+	# also stops pasta and the containers, as their network is gone
+	KillMode=mixed
+EOF
 
 FROM dind AS debian
 ADD --link --chmod=644 --checksum=sha256:1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570 https://download.docker.com/linux/debian/gpg /etc/apt/keyrings/docker.asc
@@ -59,8 +100,6 @@ RUN <<-'EOF'
 		pigz \
 		xz
 	addgroup -S docker
-	mkdir -p /etc/systemd/system/multi-user.target.wants
-	ln -s ../docker.service /etc/systemd/system/multi-user.target.wants/
 EOF
 COPY --link --from=docker \
     /usr/local/bin/containerd-shim-runc-v2 \
@@ -74,17 +113,3 @@ COPY --link --from=docker \
     /usr/local/libexec/docker/cli-plugins/docker-buildx \
     /usr/local/libexec/docker/cli-plugins/docker-compose \
     /usr/local/libexec/docker/cli-plugins/
-COPY --link <<-'EOF' /etc/systemd/system/docker.service
-	[Unit]
-	Description=Docker Application Container Engine
-
-	[Service]
-	Type=notify
-	# systemd leaves /bin and /sbin out, but alpine still has commands there
-	Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-	ExecStart=/usr/local/bin/dockerd
-	Restart=always
-	RestartSec=2
-	Delegate=yes
-	KillMode=process
-EOF

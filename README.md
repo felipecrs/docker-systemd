@@ -15,6 +15,10 @@ Tags follow the ones of the [Docker Official Images](https://hub.docker.com/_/do
 - `alpine`, `alpine3.24`, `alpine3.23`, `alpine3.22`: Alpine with systemd as PID 1
 - `bin`: only the static binary
 
+`ghcr.io/felipecrs/passt`:
+
+- `bin`: only the static binary of [passt](https://passt.top), which behaves as `pasta` if named as such
+
 There are also images that build on these ones:
 
 - [`ghcr.io/felipecrs/systemd-dind`](dind/README.md): with Docker, Compose, and Buildx
